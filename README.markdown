@@ -69,4 +69,4 @@ The resulting tuple will be matched against the pattern's arguments
         case seq (1, 1, 2, 3, 5, *rest):
             return 'fibonacci'
 
-[matching] http://lampwww.epfl.ch/~emir/written/MatchingObjectsWithPatterns-TR.pdf
+[matching]: http://lampwww.epfl.ch/~emir/written/MatchingObjectsWithPatterns-TR.pdf
