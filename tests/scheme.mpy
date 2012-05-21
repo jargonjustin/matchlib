@@ -1,0 +1,133 @@
+from matchlib.extractors import caseclass, extractor
+
+class Num(caseclass('value')): pass
+class Str(caseclass('value')): pass
+class Bool(caseclass('value')): pass
+class Sym(caseclass('name')): pass
+
+class Cons(caseclass('car', 'cdr')): pass
+
+class Lambda(caseclass('parameters', 'body', 'environment')): pass
+class Native(caseclass('function')): pass
+
+class Environment(object):
+    def __init__(self, parent=None):
+        self.bindings = dict()
+        self.parent = parent
+    
+    def __getitem__(self, name):
+        if self.bindings.has_key(name):
+            return self.bindings[name]
+        elif self.parent is not None:
+            return self.parent[name]
+        else:
+            raise KeyError, name
+    
+    def __setitem__(self, name, value):
+        self.bindings[name] = value
+    
+    def __contains__(self, name):
+        return self.bindings.has_key(name) or \
+               (self.parent is not None and name in self.parent)
+
+@extractor
+def List(obj):
+   if islist(obj):
+       current = obj
+       values = []
+       while current is not None:
+           values.append(current.car)
+           current = current.cdr
+       return tuple(values)
+
+def evaluate(expr, env):
+    match expr with:
+        case Num(_), Str(_), Bool(_): return expr
+        case Sym(name): return env[name]
+        case List(Sym("quote"), value):
+            return value
+        case List(Sym("define"), Sym(name), value):
+            env[name] = evaluate(value, env)
+        case List(Sym("lambda"), List(*formals), *body):
+            return Lambda([sym.name for sym in formals], body, env)
+        case List(Sym("if"), pred, cons, alt):
+            if evaluate(pred, env) != Bool(False):
+                return evaluate(cons, env)
+            else:
+                return evaluate(alt, env)
+        case List(function, *arguments):
+            match evaluate(function, env) with:
+                case Lambda(formals, body, fenv):
+                    aenv = Environment(fenv)
+                    for (formal, argument) in zip(formals, arguments):
+                        aenv[formal] = evaluate(argument, env)
+                    for expression in body[:-1]:
+                        evaluate(expression, aenv)
+                    return evaluate(body[-1], aenv)
+                case Native(function):
+                    return function(*[ evaluate(arg, env) for arg in arguments ])
+
+def islist(val):
+    if val is None:
+        return True
+    elif isinstance(val, Cons):
+        return islist(val.cdr)
+    else:
+        return False
+
+def display (value):
+    print value
+
+TopLevel = Environment()
+TopLevel["display"] = Native(display)
+TopLevel["number?"] = Native(lambda val: Bool(isinstance(val, Num)))
+TopLevel["boolean?"] = Native(lambda val: Bool(isinstance(val, Bool)))
+TopLevel["string?"] = Native(lambda val: Bool(isinstance(val, Str)))
+TopLevel["null?"] = Native(lambda val: Bool(val is None))
+TopLevel["list?"] = Native(lambda val: Bool(islist(val)))
+TopLevel["cons"] = Native(lambda car, cdr: Cons(car, cdr))
+TopLevel["car"] = Native(lambda cons: cons.car)
+TopLevel["cdr"] = Native(lambda cons: cons.cdr)
+TopLevel["+"] = Native(lambda x, y: Num(x.value + y.value))
+TopLevel["-"] = Native(lambda x, y: Num(x.value - y.value))
+TopLevel["*"] = Native(lambda x, y: Num(x.value * y.value))
+
+if __name__ == '__main__':
+    def L (*args):
+        args = list(args)
+        current = None
+        while args:
+            current = Cons (args.pop(), current)
+        return current
+    
+    def lift(obj):
+        if isinstance(obj, int) or isinstance(obj, float):
+            return Num(obj)
+        elif isinstance(obj, str) or isinstance(obj, unicode):
+            return Sym(obj)
+        elif isinstance(obj, bool):
+            return Bool(obj)
+        elif isinstance(obj, list) or isinstance(obj, tuple):
+            return L(*[ lift(value) for value in obj ])
+        else:
+            raise ValueError("unable to lift " + repr(obj))
+    
+    program = lift([
+        ('display', ('+', ('*', 12, 2), 3)),
+        ('define', 'inc',
+            ('lambda', ['n'],
+                ('lambda', ['x'],
+                    ('+', 'x', 'n')))),
+        ('display', (('inc', 3), 3)),
+        ('define', 'car-or-value',
+            ('lambda', ['value'],
+                ('if', ('list?', 'value'),
+                       ('car', 'value'),
+                       'value'))),
+        ('display', ('car-or-value', ('quote', (1, 2, 3)))),
+        ('display', ('car-or-value', 2))
+    ])
+    
+    inter = Environment (TopLevel)    
+    for line in List.__match__(program):
+        evaluate (line, inter)

@@ -1,0 +1,33 @@
+from matchlib.extractors import extractor
+
+def test (value):
+    @extractor
+    def seq(obj):
+        try:
+            return tuple ([ elm for elm in iter (obj) ])
+        except TypeError:
+            return None
+    match value with:
+        case seq (1, 1, 2, 3, 5, *rest):
+            return 'fibonacci'
+        case (tag, seq(*_) as details) if isinstance (tag, str):
+            return details
+        case [head, *tail], (head, *tail):
+            return (head, tail)
+        case { 'string':  val } if isinstance (val, str):
+            return val
+        case _:
+            return 'no match'
+
+if __name__ == '__main__':
+    def fib (max=None):
+        a, b = 0, 1
+        while max is None or max > a:
+            a, b = b, a + b
+            yield a
+    
+    print test ([1, 2, 3])
+    print test ({ 'string': 'foo' })
+    print test (tuple (fib (20)))
+    print test (('a tag', [1, 2, 3]))
+    print test ('something else')

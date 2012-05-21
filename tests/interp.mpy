@@ -1,0 +1,23 @@
+from matchlib.extractors import caseclass
+
+class Num(caseclass('value')):
+    def __init__(self, value):
+        self.value = int(value)
+
+class Add(caseclass('lhs', 'rhs')): pass
+class Mul(caseclass('lhs', 'rhs')): pass
+class Mod(caseclass('lhs', 'rhs')): pass
+
+def interp(expr):
+    "Evaluate the expression AST"
+    match expr with:
+        case Num(x): return x
+        case Add(lhs, rhs):
+            return interp(lhs) + interp(rhs)
+        case Mul(lhs, rhs):
+            return interp(lhs) * interp(rhs)
+        case Mod(lhs, rhs):
+            return interp(lhs) % interp(rhs)
+
+if __name__ == '__main__':
+    print interp(Add(Mul(Num(12), Num(2)), Num(3)))

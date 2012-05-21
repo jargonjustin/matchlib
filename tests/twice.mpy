@@ -1,0 +1,11 @@
+from matchlib.extractors import extractor
+
+@extractor
+def Twice(x):
+    if isinstance(x, int):
+        return (x/2,)
+
+if __name__ == '__main__':
+        
+    match 24 with:
+        case Twice(x): print x
